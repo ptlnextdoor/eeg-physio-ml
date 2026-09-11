@@ -64,28 +64,39 @@ def main():
     os.makedirs(os.path.dirname(args.out_json) or ".", exist_ok=True)
     json.dump(out, open(args.out_json, "w"), indent=2)
 
-    # Figure: best model pred vs true (left), MAE by model vs baseline (right)
+    # Figure. Left: best model pred vs true with fitted trend so the correlation
+    # is visible, not just a blob. Right: how much of the baseline error each
+    # model removes, so 9.45 -> 8.44 reads as a real gap instead of a tie.
     fs.use_paper_style()
     fig, (axA, axB) = fs.new_figure(cols=2, panels=2)
-    p = preds[best]; lo, hi = y.min() - 3, y.max() + 3
+    p = preds[best]; lo, hi = 38, 92
     axA.plot([lo, hi], [lo, hi], color=fs.PALETTE[7], lw=1, ls="--", label="perfect (y = x)")
-    axA.scatter(y, p, s=16, color=fs.PALETTE[0], alpha=0.6, edgecolor="none")
+    axA.scatter(y, p, s=18, color=fs.PALETTE[0], alpha=0.55, edgecolor="none", label="one recording")
+    m_, b_ = np.polyfit(y, p, 1)
+    xx = np.array([y.min(), y.max()])
+    axA.plot(xx, m_ * xx + b_, color=fs.PALETTE[3], lw=2,
+             label=f"fitted trend (r = {scores[best]['pearson_r']:.2f})")
+    axA.axhline(y.mean(), color=fs.PALETTE[7], lw=0.8, ls=":", label="guess-the-mean line")
     axA.set_xlim(lo, hi); axA.set_ylim(lo, hi)
-    axA.set_xlabel("true age (years)"); axA.set_ylabel("predicted age (years, cross-validated)")
-    axA.set_title(f"{best}: MAE {scores[best]['mae']:.1f} yr, r = {scores[best]['pearson_r']:.2f}")
-    fs.opaque_legend(axA)
+    axA.set_xlabel("true age (years)")
+    axA.set_ylabel("predicted age (years, 5-fold cross-validated)")
+    axA.set_title(f"Predictions track age: MAE {scores[best]['mae']:.1f} yr, r = {scores[best]['pearson_r']:.2f}")
+    fs.opaque_legend(axA, loc="upper left")
 
-    names = ["baseline"] + list(scores)
-    maes = [baseline] + [scores[k]["mae"] for k in scores]
-    cols = [fs.PALETTE[7]] + [fs.PALETTE[0] if k != best else fs.PALETTE[3] for k in scores]
-    axB.bar(names, maes, color=cols)
-    axB.axhline(baseline, color=fs.PALETTE[7], ls="--", lw=1)
-    axB.set_ylabel("brain-age MAE (years, lower is better)")
-    axB.set_title("Per-epoch features vs guessing the mean")
-    for i, v in enumerate(maes):
-        axB.annotate(f"{v:.2f}", (i, v), ha="center", va="bottom", fontsize=7)
+    names = ["ridge", "gbr"]
+    reduction = [100.0 * (baseline - scores[k]["mae"]) / baseline for k in names]
+    cols = [fs.PALETTE[0] if k != best else fs.PALETTE[3] for k in names]
+    bars = axB.bar(names, reduction, color=cols, width=0.55)
+    axB.axhline(0, color=fs.PALETTE[7], lw=1, ls="--")
+    axB.set_ylabel("error removed vs guessing the mean (%)")
+    axB.set_xlabel("model on 110 per-epoch features")
+    axB.set_title(f"Both models beat the {baseline:.2f} yr guess-the-mean baseline")
+    axB.set_ylim(0, max(reduction) * 1.35)
+    for bar, k, r in zip(bars, names, reduction):
+        axB.annotate(f"-{r:.0f}%\n({scores[k]['mae']:.2f} yr)", (bar.get_x() + bar.get_width() / 2, r),
+                     ha="center", va="bottom", fontsize=8, xytext=(0, 3), textcoords="offset points")
 
-    fig.suptitle(f"SHHS1 (n={n}): brain-age from {nf} sleep-EEG features")
+    fig.suptitle(f"SHHS1, {n} real overnight recordings: brain-age from sleep EEG")
     fs.assert_no_clip(fig)
     os.makedirs(os.path.dirname(args.out_fig) or ".", exist_ok=True)
     fs.save(fig, args.out_fig)
