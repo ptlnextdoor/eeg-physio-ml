@@ -1,76 +1,72 @@
 # eeg-physio-ml
 
-Reproducible evaluation harness for **self-supervised representation learning on
-sleep/physiological EEG**, built to probe how well learned or synthesized EEG
-representations transfer to downstream clinical tasks (sleep staging, age
-estimation) on *public* data.
+Can you guess someone's age from their sleeping brain waves?
 
-Motivated by the Katabi Lab line of work on physiological-signal ML
-(e.g. *Physiology as Language: Translating Respiration to Sleep EEG*,
-arXiv:2602.00526; *Rank-N-Contrast*, NeurIPS 2023). This repo is my own
-independent reproduction/eval scaffold, not affiliated with the lab.
+This repo is a small, honest test of that question. It takes overnight EEG
+(brain-wave) recordings, pulls out simple features, and checks how well those
+features predict a person's age. It also gives you a clean way to compare two
+different kinds of EEG on the same test.
 
-## What this does
+I built it after reading the Katabi Lab's work at MIT on turning breathing
+signals into EEG and on learning better representations for regression
+(Rank-N-Contrast). This is my own independent project, not affiliated with
+the lab.
 
-Given EEG epochs (real, or synthesized by another model), it trains a light
-linear/MLP probe on frozen features and reports downstream performance, so you
-can measure the representation gap between two EEG sources on the *same* probe.
+## What I found (on real data)
 
-- `sleep staging` probe (5-class): W, N1, N2, N3, REM
-- `age estimation` probe (regression, MAE in years)
-- source-vs-source comparison table (real EEG vs synthesized EEG)
+I ran it on **200 real overnight recordings** from the Sleep Heart Health
+Study (SHHS, via NSRR).
 
-## Quick start
-
-```bash
-python -m pip install -r requirements.txt
-python scripts/selfcheck.py          # runs on synthetic data, no download needed
-```
-
-The self-check builds a tiny synthetic dataset with a known age->band-power
-relationship, runs both probes, and asserts the harness recovers signal above
-chance. This proves the pipeline is correct before you plug in real data.
-
-## Using real data (Sleep-EDF)
-
-1. Download Sleep-EDF Expanded from PhysioNet.
-2. Convert to `.npz` epochs with `scripts/prep_sleepedf.py` (stub; fill paths).
-3. Run `python scripts/run_eval.py --data data/sleepedf.npz --task sleep_staging`.
-
-## Repo layout
-
-```
-src/eeg_eval/       core: data, features, probes, metrics
-scripts/            selfcheck, prep, run_eval
-```
-
-## Status
-
-Working self-check on synthetic data. Sleep-EDF adapter is a stub to be filled
-against a downloaded copy. Extending toward a real respiration->EEG comparison.
-
-## Real-data result (SHHS1, NSRR, n=200)
-
-Ran the pipeline on 200 real SHHS1 overnight recordings (single-channel EEG,
-NSRR). Whole-night averaged relative bandpower + cross-validated ridge gives:
-
-| metric | value |
+| | error in years |
 |---|---|
-| brain-age MAE | 9.53 yr |
-| mean-age baseline MAE | 9.45 yr |
-| R^2 | -0.01 |
-| best single band (alpha) \|Spearman r\| with age | 0.11 |
+| Just guessing everyone is the average age | 9.45 |
+| My model using brain-wave features | 9.53 |
 
-Honest finding: crude bandpower is **not** age-informative on its own; the model
-regularizes to the mean. That is the point of this harness. It is the baseline
-that learned representations (Rank-N-Contrast, the respiration->EEG generative
-model) must beat. See `figures/shhs_brainage.png`.
+**The model did no better than guessing the average.** Simple brain-wave
+features (how much slow vs fast activity there is, averaged over the whole
+night) carry almost no information about age. The strongest single feature
+had a correlation with age of only 0.11.
 
-Reproduce (needs your own NSRR SHHS copy; no data or token is shipped):
+That's not a failure, it's the point. Crude features aren't enough. This is the
+baseline that smarter, learned features have to beat. Next up: testing whether
+the Rank-N-Contrast method actually beats it.
+
+![result](figures/shhs_brainage.png)
+
+## Try it in 30 seconds (no data needed)
 
 ```bash
-python scripts/cache_shhs_features.py --edf-dir <edfs> --harmonized <harmonized.csv> --out feats.npz
+pip install -r requirements.txt
+python scripts/selfcheck.py
+```
+
+This builds fake brain-wave data where I *know* the answer, then checks that
+the code recovers it. If this passes, the pipeline works.
+
+## Run it on real data
+
+You need your own copy of SHHS from NSRR (free with a signed data-use
+agreement). Nothing from the dataset is included here.
+
+```bash
+python scripts/cache_shhs_features.py --edf-dir <folder of .edf files> --harmonized <shhs-harmonized.csv> --out feats.npz
 python scripts/shhs_brainage_report.py --features feats.npz
+```
+
+The first command reads the recordings once and saves small feature files.
+The second one trains the model, prints the numbers, and makes the figure.
+
+## What's in here
+
+```
+src/eeg_eval/                    the core: features, models, fake data
+scripts/selfcheck.py             quick test on fake data
+scripts/cache_shhs_features.py   real recordings -> saved features
+scripts/shhs_brainage_report.py  features -> numbers + figure
+scripts/run_eval.py              run any saved dataset through the models
+scripts/prep_sleepedf.py         loader for a second public dataset (not finished)
+figures/                         the figure above
+results/                         the numbers, as a small JSON file
 ```
 
 ## License
