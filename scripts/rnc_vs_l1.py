@@ -24,11 +24,11 @@ sys.path.insert(0, HERE)
 import numpy as np
 import torch, torch.nn as nn
 from sklearn.model_selection import KFold
-from sklearn.preprocessing import StandardScaler
+from sklearn.preprocessing import StandardScaler, QuantileTransformer
 from rnc.loss import RnCLoss
 
 
-def mlp(d_in, d_hid=64, d_out=32):
+def mlp(d_in, d_hid=128, d_out=32):
     return nn.Sequential(nn.Linear(d_in, d_hid), nn.ReLU(), nn.Linear(d_hid, d_out))
 
 
@@ -79,7 +79,7 @@ def cv_mae(X, y, trainer, epochs, seed):
     kf = KFold(5, shuffle=True, random_state=seed)
     pred = np.zeros_like(y)
     for tr, te in kf.split(X):
-        sc = StandardScaler().fit(X[tr])
+        sc = QuantileTransformer(n_quantiles=min(100, len(tr)), output_distribution="normal", random_state=0).fit(X[tr])
         Xtr, Xte = sc.transform(X[tr]), sc.transform(X[te])
         mu = y[tr].mean()
         enc, head = trainer(Xtr, y[tr] - mu, epochs, seed)
@@ -108,8 +108,8 @@ def main():
 
     out = {
         "dataset": "SHHS1 (NSRR)", "n_recordings": int(len(y)),
-        "features": "5 whole-night relative bandpowers",
-        "encoder": "MLP 5->64->32, linear head", "epochs": args.epochs,
+        "features": f"{X.shape[1]} per-epoch-distribution features (rank-normalized)",
+        "encoder": f"MLP {X.shape[1]}->128->32, linear head", "epochs": args.epochs,
         "seeds": args.seeds, "cv_folds": 5,
         "mean_baseline_mae": round(baseline, 2),
         "l1_mae_mean": round(float(np.mean(l1)), 2), "l1_mae_std": round(float(np.std(l1)), 2),

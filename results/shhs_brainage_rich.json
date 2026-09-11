@@ -1,0 +1,22 @@
+{
+  "dataset": "SHHS1 (NSRR)",
+  "n_recordings": 200,
+  "n_features": 110,
+  "features": "per-epoch abs+rel bandpower + slope, night distribution stats, 2 EEG channels",
+  "cv_folds": 5,
+  "mean_baseline_mae": 9.45,
+  "models": {
+    "ridge": {
+      "mae": 8.691,
+      "r2": 0.092,
+      "pearson_r": 0.319
+    },
+    "gbr": {
+      "mae": 8.437,
+      "r2": 0.112,
+      "pearson_r": 0.365
+    }
+  },
+  "best_model": "gbr",
+  "beats_baseline": true
+}

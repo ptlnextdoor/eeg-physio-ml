@@ -17,46 +17,55 @@ the lab.
 I ran it on **200 real overnight recordings** from the Sleep Heart Health
 Study (SHHS, via NSRR).
 
-| | error in years |
-|---|---|
-| Just guessing everyone is the average age | 9.45 |
-| My model using brain-wave features | 9.53 |
+**First try was a flop, and it taught me something.** I summarized each
+whole night as 5 numbers (how much slow vs fast brain activity, averaged over
+8 hours). The model predicted "about 61" for everyone. It couldn't beat just
+guessing the average age (9.53 vs 9.45 years error). Averaging a whole night
+into one number throws away the part that carries age: how sleep is
+*structured* through the night.
 
-**The model did no better than guessing the average.** Simple brain-wave
-features (how much slow vs fast activity there is, averaged over the whole
-night) carry almost no information about age. The strongest single feature
-had a correlation with age of only 0.11.
+**Second try fixed it.** I split each night into 30-second chunks, measured
+brain activity in each chunk, and kept the *spread* across the night (average,
+variation, 10th/50th/90th percentiles) for both EEG channels. That's 110
+numbers per night instead of 5.
 
-That's not a failure, it's the point. Crude features aren't enough. This is the
-baseline that smarter, learned features have to beat.
+| model | error in years | beats guessing? |
+|---|---|---|
+| Guess everyone is the average age | 9.45 | (baseline) |
+| Linear model on 110 features | 8.69 | yes |
+| Gradient-boosted trees on 110 features | **8.44** | yes, correlation r = 0.36 |
+
+![result](figures/shhs_brainage.png)
+
+Left: predicted vs true age. The dots now follow the diagonal instead of
+sitting in a flat line. Right: the two real models beat the guess-the-mean bar.
+
+This is still a modest result (an 8.4-year error on ages 40 to 89 is far from
+clinical), but it's real signal from real data with only 200 people, and the
+whole pipeline runs from raw EDF files.
 
 ## Does Rank-N-Contrast help? (head-to-head)
 
-I then tested the Katabi Lab's Rank-N-Contrast objective against plain L1,
-using their `loss.py` unmodified. Same small neural net, same folds, same
-epochs, 3 random seeds. The only thing that changes is the training objective.
+I tested the Katabi Lab's Rank-N-Contrast objective against plain L1, using
+their `loss.py` unmodified, same small neural net, same folds, 3 seeds, on
+the same 110 features.
 
 | training objective | error in years (mean ± std over seeds) |
 |---|---|
 | Guess the average age | 9.45 |
-| Plain L1 | 9.91 ± 0.20 |
-| Rank-N-Contrast, then L1 head | 9.62 ± 0.11 |
+| Gradient-boosted trees (from above) | 8.44 |
+| Neural net, plain L1 | 10.29 ± 0.23 |
+| Neural net, Rank-N-Contrast then L1 head | 10.10 ± 0.15 |
 
 Two takeaways:
-- **RnC beats plain L1 on average (2 of 3 seeds, and by a wider margin than it
-  loses), and is more stable** (half the spread). The objective helps, even on
-  physiological data, but 3 seeds is a small sample and the effect is modest.
-  It also depends on training long enough: at 30 epochs the two are tied
-  (9.52 vs 9.48), the gap only opens by 200. RnC needs time to shape the
-  representation before the linear head can use it.
-- **Neither beats guessing the average.** With only 5 numbers per night as
-  input, there isn't enough signal for any objective to work with. The fix is
-  better inputs (per-epoch features, more channels, or raw EEG), not a better
-  loss. That's the next experiment.
+- **RnC beats plain L1 again**, on both the crude and the rich features, and
+  is again more stable. The objective consistently does what the paper says.
+- **But with only 200 people, a small neural net overfits and loses to trees.**
+  Both nets land above the guess-the-mean bar. That is the honest limit of
+  this dataset size, not of RnC. The natural next step is more subjects
+  (SHHS has ~5,800) and per-epoch training rather than per-night summaries.
 
-Reproduce: `python scripts/rnc_vs_l1.py --features feats.npz`
-
-![result](figures/shhs_brainage.png)
+Reproduce: `python scripts/rnc_vs_l1.py --features feats_rich.npz`
 
 ## Try it in 30 seconds (no data needed)
 
@@ -74,20 +83,24 @@ You need your own copy of SHHS from NSRR (free with a signed data-use
 agreement). Nothing from the dataset is included here.
 
 ```bash
-python scripts/cache_shhs_features.py --edf-dir <folder of .edf files> --harmonized <shhs-harmonized.csv> --out feats.npz
-python scripts/shhs_brainage_report.py --features feats.npz
+python scripts/cache_shhs_features_rich.py --edf-dir <folder of .edf files> --harmonized <shhs-harmonized.csv> --out feats_rich.npz
+python scripts/shhs_brainage_rich.py --features feats_rich.npz
 ```
 
 The first command reads the recordings once and saves small feature files.
-The second one trains the model, prints the numbers, and makes the figure.
+The second one trains the models, prints the numbers, and makes the figure.
+(`cache_shhs_features.py` + `shhs_brainage_report.py` are the older 5-feature
+version, kept so the flop above is reproducible too.)
 
 ## What's in here
 
 ```
 src/eeg_eval/                    the core: features, models, fake data
 scripts/selfcheck.py             quick test on fake data
-scripts/cache_shhs_features.py   real recordings -> saved features
-scripts/shhs_brainage_report.py  features -> numbers + figure
+scripts/cache_shhs_features_rich.py  real recordings -> 110 per-night features
+scripts/shhs_brainage_rich.py        features -> numbers + figure
+scripts/cache_shhs_features.py       older 5-feature version (the flop)
+scripts/shhs_brainage_report.py      older report for the 5-feature version
 scripts/rnc_vs_l1.py             Rank-N-Contrast vs L1 head-to-head
 src/rnc/loss.py                  Kaiwen Zha's RnCLoss, copied unmodified
 scripts/run_eval.py              run any saved dataset through the models
