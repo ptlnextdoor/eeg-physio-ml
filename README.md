@@ -46,6 +46,9 @@ Two takeaways:
 - **RnC beats plain L1 on average (2 of 3 seeds, and by a wider margin than it
   loses), and is more stable** (half the spread). The objective helps, even on
   physiological data, but 3 seeds is a small sample and the effect is modest.
+  It also depends on training long enough: at 30 epochs the two are tied
+  (9.52 vs 9.48), the gap only opens by 200. RnC needs time to shape the
+  representation before the linear head can use it.
 - **Neither beats guessing the average.** With only 5 numbers per night as
   input, there isn't enough signal for any objective to work with. The fix is
   better inputs (per-epoch features, more channels, or raw EEG), not a better
