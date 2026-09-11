@@ -1,0 +1,17 @@
+{
+  "dataset": "SHHS1 (NSRR)",
+  "n_recordings": 200,
+  "features": "5 whole-night relative bandpowers",
+  "encoder": "MLP 5->64->32, linear head",
+  "epochs": 200,
+  "seeds": 3,
+  "cv_folds": 5,
+  "mean_baseline_mae": 9.45,
+  "l1_mae_mean": 9.91,
+  "l1_mae_std": 0.2,
+  "rnc_mae_mean": 9.62,
+  "rnc_mae_std": 0.11,
+  "rnc_beats_l1": true,
+  "either_beats_baseline": false,
+  "loss_source": "github.com/kaiwenzha/Rank-N-Contrast loss.py, unmodified"
+}

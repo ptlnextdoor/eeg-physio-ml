@@ -28,8 +28,30 @@ night) carry almost no information about age. The strongest single feature
 had a correlation with age of only 0.11.
 
 That's not a failure, it's the point. Crude features aren't enough. This is the
-baseline that smarter, learned features have to beat. Next up: testing whether
-the Rank-N-Contrast method actually beats it.
+baseline that smarter, learned features have to beat.
+
+## Does Rank-N-Contrast help? (head-to-head)
+
+I then tested the Katabi Lab's Rank-N-Contrast objective against plain L1,
+using their `loss.py` unmodified. Same small neural net, same folds, same
+epochs, 3 random seeds. The only thing that changes is the training objective.
+
+| training objective | error in years (mean ± std over seeds) |
+|---|---|
+| Guess the average age | 9.45 |
+| Plain L1 | 9.91 ± 0.20 |
+| Rank-N-Contrast, then L1 head | 9.62 ± 0.11 |
+
+Two takeaways:
+- **RnC beats plain L1 on average (2 of 3 seeds, and by a wider margin than it
+  loses), and is more stable** (half the spread). The objective helps, even on
+  physiological data, but 3 seeds is a small sample and the effect is modest.
+- **Neither beats guessing the average.** With only 5 numbers per night as
+  input, there isn't enough signal for any objective to work with. The fix is
+  better inputs (per-epoch features, more channels, or raw EEG), not a better
+  loss. That's the next experiment.
+
+Reproduce: `python scripts/rnc_vs_l1.py --features feats.npz`
 
 ![result](figures/shhs_brainage.png)
 
@@ -63,6 +85,8 @@ src/eeg_eval/                    the core: features, models, fake data
 scripts/selfcheck.py             quick test on fake data
 scripts/cache_shhs_features.py   real recordings -> saved features
 scripts/shhs_brainage_report.py  features -> numbers + figure
+scripts/rnc_vs_l1.py             Rank-N-Contrast vs L1 head-to-head
+src/rnc/loss.py                  Kaiwen Zha's RnCLoss, copied unmodified
 scripts/run_eval.py              run any saved dataset through the models
 scripts/prep_sleepedf.py         loader for a second public dataset (not finished)
 figures/                         the figure above
