@@ -1,0 +1,12 @@
+{
+  "n_recordings": 10,
+  "cv_folds": 5,
+  "brainage_mae_years": 14.421,
+  "mean_baseline_mae_years": 9.88,
+  "r2": -1.624,
+  "age_range": [
+    40.0,
+    78.0
+  ],
+  "note": "SHHS1 pilot, EEG log-bandpower -> ridge. Bandpower baseline, not RnC yet."
+}
