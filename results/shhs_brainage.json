@@ -1,12 +1,21 @@
 {
-  "n_recordings": 10,
+  "dataset": "SHHS1 (NSRR)",
+  "n_recordings": 200,
   "cv_folds": 5,
-  "brainage_mae_years": 14.421,
-  "mean_baseline_mae_years": 9.88,
-  "r2": -1.624,
+  "brainage_mae_years": 9.53,
+  "mean_baseline_mae_years": 9.45,
+  "beats_baseline": false,
+  "r2": -0.011,
+  "per_band_spearman_r": {
+    "delta": -0.061,
+    "theta": 0.059,
+    "alpha": 0.11,
+    "sigma": 0.023,
+    "beta": 0.061
+  },
   "age_range": [
     40.0,
-    78.0
+    89.0
   ],
-  "note": "SHHS1 pilot, EEG log-bandpower -> ridge. Bandpower baseline, not RnC yet."
+  "finding": "Whole-night single-channel relative bandpower is only weakly age-informative; motivates learned representations (RnC, respiration->EEG) that this harness is built to evaluate."
 }

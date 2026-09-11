@@ -49,6 +49,30 @@ scripts/            selfcheck, prep, run_eval
 Working self-check on synthetic data. Sleep-EDF adapter is a stub to be filled
 against a downloaded copy. Extending toward a real respiration->EEG comparison.
 
+## Real-data result (SHHS1, NSRR, n=200)
+
+Ran the pipeline on 200 real SHHS1 overnight recordings (single-channel EEG,
+NSRR). Whole-night averaged relative bandpower + cross-validated ridge gives:
+
+| metric | value |
+|---|---|
+| brain-age MAE | 9.53 yr |
+| mean-age baseline MAE | 9.45 yr |
+| R^2 | -0.01 |
+| best single band (alpha) \|Spearman r\| with age | 0.11 |
+
+Honest finding: crude bandpower is **not** age-informative on its own; the model
+regularizes to the mean. That is the point of this harness. It is the baseline
+that learned representations (Rank-N-Contrast, the respiration->EEG generative
+model) must beat. See `figures/shhs_brainage.png`.
+
+Reproduce (needs your own NSRR SHHS copy; no data or token is shipped):
+
+```bash
+python scripts/cache_shhs_features.py --edf-dir <edfs> --harmonized <harmonized.csv> --out feats.npz
+python scripts/shhs_brainage_report.py --features feats.npz
+```
+
 ## License
 
 MIT

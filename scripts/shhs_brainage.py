@@ -22,10 +22,16 @@ import numpy as np
 EEG_CANDIDATES = ["EEG", "EEG(sec)", "EEG2", "EEG1", "C4-A1", "C3-A2"]
 
 
-def load_edf_bandpower(path, fs_target=100.0, max_minutes=20):
-    """Return a single feature vector (log bandpower) for one EDF, or None."""
+def load_edf_bandpower(path, fs_target=100.0, max_minutes=60):
+    """Return a feature vector for one EDF, or None.
+
+    Richer than a single mean: per epoch we compute absolute and relative
+    log-bandpower, then summarize the night by the distribution (mean + 20/50/80
+    percentiles). Averaging bandpower over the whole night alone is too crude for
+    brain-age; the spread across epochs carries the sleep-architecture signal.
+    """
     import mne
-    from eeg_eval import bandpower_features
+    from eeg_eval import bandpower_features, BANDS
     raw = mne.io.read_raw_edf(path, preload=False, verbose="ERROR")
     ch = next((c for c in EEG_CANDIDATES if c in raw.ch_names), None)
     if ch is None:
@@ -37,14 +43,20 @@ def load_edf_bandpower(path, fs_target=100.0, max_minutes=20):
     raw.load_data(verbose="ERROR")
     raw.resample(fs_target, verbose="ERROR")
     x = raw.get_data()[0]
-    # segment into 30 s epochs, average bandpower over the night sample
     T = int(30 * fs_target)
     n_ep = len(x) // T
-    if n_ep < 5:
+    if n_ep < 10:
         return None
     epochs = x[: n_ep * T].reshape(n_ep, 1, T)
-    feats = bandpower_features(epochs, fs=fs_target)  # (n_ep, n_bands)
-    return feats.mean(0)
+    logbp = bandpower_features(epochs, fs=fs_target)      # (n_ep, n_bands) log power
+    bp = np.exp(logbp)
+    rel = bp / (bp.sum(axis=1, keepdims=True) + 1e-12)    # relative bandpower
+    # summarize the night by distribution stats per band
+    feats = []
+    for M in (logbp, rel):
+        feats.append(M.mean(0))
+        feats.extend(np.percentile(M, [20, 50, 80], axis=0))
+    return np.concatenate(feats)
 
 
 def subject_id_from_edf(path):
@@ -77,7 +89,7 @@ def main():
     ap.add_argument("--max-minutes", type=float, default=20)
     args = ap.parse_args()
 
-    from sklearn.linear_model import Ridge
+    from sklearn.linear_model import RidgeCV
     from sklearn.preprocessing import StandardScaler
     from sklearn.pipeline import make_pipeline
     from sklearn.model_selection import cross_val_predict, KFold
@@ -100,14 +112,21 @@ def main():
         X.append(f); y.append(ages[sid]); ids.append(sid)
         print(f"ok {os.path.basename(p)} age={ages[sid]:.0f}")
     X = np.asarray(X); y = np.asarray(y)
+    # Guard: drop non-finite rows (artifact recordings) so a few bad EDFs can't
+    # poison the fit. This is why the naive pipeline blew up before.
+    finite = np.isfinite(X).all(axis=1)
+    X, y = X[finite], y[finite]
     n = len(y)
-    print(f"\nUsable recordings: {n}")
+    print(f"\nUsable recordings: {n} (dropped {int((~finite).sum())} non-finite)")
     if n < 8:
         print("Not enough recordings for CV; download more EDFs.", file=sys.stderr)
         return 2
 
     k = min(5, n)
-    model = make_pipeline(StandardScaler(), Ridge(alpha=10.0))
+    model = make_pipeline(
+        StandardScaler(),
+        RidgeCV(alphas=np.logspace(-1, 4, 20)),
+    )
     pred = cross_val_predict(model, X, y, cv=KFold(k, shuffle=True, random_state=0))
     mae = mean_absolute_error(y, pred)
     baseline = mean_absolute_error(y, np.full_like(y, y.mean()))
